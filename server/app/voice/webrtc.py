@@ -69,8 +69,6 @@ async def webrtc_offer(request: dict, background_tasks: BackgroundTasks):
             detail="The voice agent is not configured on this server.",
         ) from exc
 
-    await call_flow.create_web_call(visitor_name, call_id=call_id)
-
     connection = SmallWebRTCConnection(ice_servers=_ice_servers())
     await connection.initialize(sdp=request["sdp"], type=request["type"])
 
@@ -91,7 +89,20 @@ async def webrtc_offer(request: dict, background_tasks: BackgroundTasks):
     async def on_turn(turn):
         await call_flow.persist_turn(call_id, turn)
 
-    session = create_voice_session(transport, str(call_id), engine=engine, on_turn=on_turn)
+    # Assembling the pipeline is the last thing that can fail on bad config
+    # (an unset vendor key, an unknown provider name), so the call row is only
+    # written once the whole session is known to be constructible.
+    try:
+        session = create_voice_session(transport, str(call_id), engine=engine, on_turn=on_turn)
+    except (RuntimeError, ValueError) as exc:
+        logger.error(f"cannot start web session: {exc}")
+        await connection.disconnect()
+        raise HTTPException(
+            status_code=503,
+            detail="The voice agent is not configured on this server.",
+        ) from exc
+
+    await call_flow.create_web_call(visitor_name, call_id=call_id)
 
     async def run_session() -> None:
         await call_flow.mark_stream_connected(call_id)
@@ -119,8 +130,22 @@ async def webrtc_offer(request: dict, background_tasks: BackgroundTasks):
 
 @router.get("/api/webrtc/health")
 async def webrtc_health() -> dict[str, object]:
-    """Lets the demo page distinguish 'not configured' from 'call failed'."""
+    """Lets the demo page distinguish 'not configured' from 'call failed'.
+
+    Readiness follows the configured vendors, so swapping TTS_PROVIDER does not
+    quietly leave this reporting on the credentials of the vendor it replaced.
+    """
     return {
-        "ready": bool(settings.sarvam_api_key and settings.groq_api_key),
+        "ready": bool(settings.sarvam_api_key and settings.groq_api_key and _tts_ready()),
         "active_sessions": len(_connections),
     }
+
+
+def _tts_ready() -> bool:
+    match settings.tts_provider:
+        case "rumik":
+            return bool(settings.rumik_api_key and settings.rumik_gateway_url)
+        case "gnani":
+            return bool(settings.gnani_api_key)
+        case _:
+            return bool(settings.sarvam_api_key)

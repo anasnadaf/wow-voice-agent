@@ -54,6 +54,9 @@ class AgentState(TypedDict):
     # routing helpers
     wrong_person: bool
     callback_time: str | None
+    # how many times closing was held back because the agent's own reply ended
+    # on a question — bounded so a call always reaches an ending
+    closing_deferred: int
     # transcript as {"role": "assistant"|"user", "content": str} dicts
     history: list[dict]
     # written by the reply node each turn, folded into history by advance
@@ -75,6 +78,7 @@ def initial_state(call_id: str, lead_name: str | None = None) -> AgentState:
         outcome=None,
         wrong_person=False,
         callback_time=None,
+        closing_deferred=0,
         history=[],
         last_reply="",
         extracted={},

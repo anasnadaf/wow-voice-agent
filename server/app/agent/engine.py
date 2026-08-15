@@ -21,6 +21,16 @@ _BASE_URLS = {
     "cerebras": "https://api.cerebras.ai/v1",
 }
 
+# A reasoning model counts its thinking against max_tokens, so a budget sized
+# for the spoken sentence alone comes back empty. This buys the thinking its own
+# room without loosening the reply length the prompt asks for.
+_REASONING_HEADROOM = 512
+
+# A caller may speak up after the goodbye, and the wrap-up stage answers them.
+# Each reopening costs the caller an utterance, so this only bounds a line noisy
+# enough to keep tripping voice detection on its own.
+_MAX_RESUMES = 3
+
 
 def _default_llm(model: str, *, temperature: float, max_tokens: int) -> ChatOpenAI:
     provider = settings.llm_provider
@@ -29,13 +39,16 @@ def _default_llm(model: str, *, temperature: float, max_tokens: int) -> ChatOpen
     api_key = {"groq": settings.groq_api_key, "cerebras": settings.cerebras_api_key}[provider]
     if not api_key:
         raise RuntimeError(f"{provider}_api_key is not configured")
+    effort = settings.llm_reasoning_effort
     return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url=_BASE_URLS[provider],
         temperature=temperature,
-        max_tokens=max_tokens,
+        max_tokens=max_tokens + (_REASONING_HEADROOM if effort else 0),
         timeout=30,
+        # plain models reject the parameter outright, so only send it when asked
+        **({"reasoning_effort": effort} if effort else {}),
     )
 
 
@@ -71,6 +84,8 @@ class ConversationEngine:
         self._opening = _compose_opening(lead_name)
         # the deterministic opening is part of the transcript from the start
         self._state["history"].append({"role": "assistant", "content": self._opening})
+        self._reopened = False
+        self._resumes = 0
 
     def opening_line(self) -> str:
         """Deterministic greeting (project + location + permission ask). No LLM call."""
@@ -84,6 +99,7 @@ class ConversationEngine:
         """
         if self.is_done:
             raise RuntimeError(f"call {self._state['call_id']} is already complete")
+        self._reopened = False  # this turn spends the reopening
         state_in: AgentState = {
             **self._state,
             "history": [*self._state["history"], {"role": "user", "content": user_text}],
@@ -108,7 +124,23 @@ class ConversationEngine:
 
     @property
     def is_done(self) -> bool:
+        if self._reopened:
+            return False
         return self._state["outcome"] is not None or self._state["stage"] == "done"
+
+    def resume(self) -> bool:
+        """Reopen a finished call because the caller spoke before it hung up.
+
+        The outcome is kept — the call was genuinely qualified, declined or
+        deferred — so the wrap-up stage answers once, courteously, and the call
+        settles again. Bounded, so a noisy line cannot hold it open forever, and
+        never granted after a do-not-call request.
+        """
+        if self._state["outcome"] == "dnc" or self._resumes >= _MAX_RESUMES:
+            return False
+        self._reopened = True
+        self._resumes += 1
+        return True
 
     def snapshot(self) -> dict:
         """JSON-serializable copy of the full call state for persistence."""

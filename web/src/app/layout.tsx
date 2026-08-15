@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,11 +13,17 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const displaySerif = Cormorant_Garamond({
+// Self-hosted rather than fetched from Google at build time: their CDN rotated
+// the Cormorant Garamond file hashes and started 404ing the URLs Next.js had
+// cached, which broke the image build for a font that had not changed. A
+// variable woff2 covering 400-600 also costs one request instead of six.
+const displaySerif = localFont({
   variable: "--font-display-serif",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+  display: "swap",
+  src: [
+    { path: "./fonts/cormorant-garamond-normal.woff2", style: "normal", weight: "400 600" },
+    { path: "./fonts/cormorant-garamond-italic.woff2", style: "italic", weight: "400 600" },
+  ],
 });
 
 export const metadata: Metadata = {

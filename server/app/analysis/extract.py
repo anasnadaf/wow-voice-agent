@@ -74,12 +74,19 @@ def build_extraction_lm(settings: Settings) -> dspy.LM:
         api_base, key_field = _DSPY_PROVIDERS[settings.llm_provider]
     except KeyError:
         raise ValueError(f"Unknown LLM_PROVIDER {settings.llm_provider!r}") from None
+    effort = settings.llm_reasoning_effort
     return dspy.LM(
         f"openai/{settings.extract_model}",
         api_base=api_base,
         api_key=getattr(settings, key_field),
         temperature=0.0,
         max_tokens=1500,
+        # ChainOfThought already reasons in the prompt; a reasoning model doing
+        # it again in hidden tokens only slows the post-call pass down. It rides
+        # in extra_body because litellm validates known parameters against the
+        # generic "openai" provider and rejects this one outright, even though
+        # the OpenAI-compatible endpoint behind it accepts it.
+        **({"extra_body": {"reasoning_effort": effort}} if effort else {}),
     )
 
 

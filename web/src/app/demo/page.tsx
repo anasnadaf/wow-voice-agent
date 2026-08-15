@@ -37,6 +37,7 @@ export default function DemoPage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
@@ -75,6 +76,16 @@ export default function DemoPage() {
         callbacks: {
           onTransportStateChanged: (s) => setState(s),
           onError: (message) => setError(String(message)),
+          // Without this the call connects and the agent speaks into nothing:
+          // her audio arrives as a track that no element is playing.
+          onTrackStarted: (track, participant) => {
+            if (participant?.local || track.kind !== "audio") return;
+            const el = audioRef.current;
+            if (!el) return;
+            el.srcObject = new MediaStream([track]);
+            // Chrome resolves this against the click that started the call.
+            el.play().catch(() => setError("Allow audio playback to hear the agent."));
+          },
         },
       });
       clientRef.current = client;
@@ -103,6 +114,7 @@ export default function DemoPage() {
   const stop = async () => {
     await clientRef.current?.disconnect().catch(() => {});
     clientRef.current = null;
+    if (audioRef.current) audioRef.current.srcObject = null;
     setState("disconnected");
   };
 
@@ -120,6 +132,8 @@ export default function DemoPage() {
           </p>
         </div>
       </header>
+
+      <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
       <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-14">
         <p className="text-xs uppercase tracking-[0.3em] text-brass">Live voice demo</p>

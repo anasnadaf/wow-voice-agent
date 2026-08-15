@@ -11,6 +11,8 @@ from pipecat.observers.base_observer import BaseObserver, FramePushed
 from pipecat.services.stt_service import STTService
 from pipecat.services.tts_service import TTSService
 
+from app.prompts.speech import strip_speech_tags
+
 
 @dataclass
 class TranscriptTurn:
@@ -38,7 +40,9 @@ class TranscriptRecorder(BaseObserver):
         return int((time.monotonic() - self._started_at) * 1000)
 
     async def _emit(self, role: str, text: str) -> None:
-        text = text.strip()
+        # Tone tags are markup for the synthesiser, never words the caller heard,
+        # so the record of the conversation is kept free of them.
+        text = strip_speech_tags(text) if role == "assistant" else text.strip()
         if not text:
             return
         turn = TranscriptTurn(role=role, text=text, t_offset_ms=self._offset_ms())
