@@ -35,6 +35,30 @@ class NullTelephony:
         return provider_call_id
 
 
+class PlivoTelephony:
+    """Real dialing via Plivo's REST API; the answer XML bridges the audio
+    into /ws/plivo/{call_id} (see app/voice/plivo_ws.py)."""
+
+    async def originate_call(self, call: Call, lead: Lead) -> str | None:
+        from app.config import settings
+        from app.voice.plivo_client import originate_call as plivo_originate
+
+        return await plivo_originate(settings, lead.phone, str(call.id))
+
+
+def configure_from_settings() -> None:
+    """Pick the vendor at startup; stays on NullTelephony when unconfigured
+    so dev and CI never dial anything real."""
+    from app.config import settings
+
+    if settings.telephony_provider == "plivo" and settings.plivo_auth_id:
+        set_telephony(PlivoTelephony())
+        logger.info("telephony: Plivo configured (from {})", settings.plivo_from_number)
+    else:
+        set_telephony(NullTelephony())
+        logger.info("telephony: NullTelephony active (no provider credentials)")
+
+
 _telephony: Telephony = NullTelephony()
 
 

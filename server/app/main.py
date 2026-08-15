@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 
 from app.api import calls, leads, me
 from app.config import settings
@@ -9,6 +10,14 @@ from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app import telephony
+    from app.obs.mlflow_obs import init_mlflow
+
+    telephony.configure_from_settings()
+    try:
+        init_mlflow(settings)
+    except Exception as exc:  # a down tracking server must never block calls
+        logger.warning(f"mlflow init failed: {exc}")
     yield
 
 
