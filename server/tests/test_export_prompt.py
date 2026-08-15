@@ -26,14 +26,15 @@ def test_full_prompt_renders_every_section():
     from app.prompts import full_system_prompt
 
     document = _space_lists(full_system_prompt())
+    headings = {line.lstrip("# ").strip() for line in document.split("\n") if line.startswith("#")}
     for heading in (
-        "## Persona",
-        "## Pronunciation dictionary",
-        "## Bilingual behaviour",
-        "## Stage policies",
-        "## Edge-case playbook",
-        "## Project knowledge base",
+        "Persona",
+        "Pronunciation dictionary (speakable text)",
+        "Bilingual behaviour (English / Hindi)",
+        "Stage policies",
+        "Edge-case playbook",
+        "Project knowledge base",
     ):
-        assert heading in document, f"missing {heading}"
+        assert heading in headings, f"missing {heading}"
     for term in ("Div-yaa-shree", "Nun-dhee", "laakh", "kror"):
         assert term in document

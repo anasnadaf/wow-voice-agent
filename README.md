@@ -18,15 +18,25 @@ recordings, and the four-checkpoint qualification card.
 Every vendor sits behind an adapter selected by env config: STT/TTS Sarvam ⇄ Gnani, LLM Groq ⇄
 Cerebras, telephony Plivo ⇄ (Exotel/Twilio serializers ship with Pipecat).
 
+The conversation follows a fixed architecture — permission-first introduction,
+four qualification checkpoints (intent, geography, budget, timeline), an
+aspirational pitch, and a Property Expert follow-up — while handling the calls
+that don't go to plan: irritated prospects, busy ones, wrong numbers, budget
+mismatches, location objections, and do-not-call requests. Checkpoints answered
+early are never asked again.
+
 ## Layout
 
 ```
 server/   FastAPI + Pipecat + LangGraph + DSPy (Python 3.12, uv)
 web/      Next.js dashboard + public request-a-call page
 deploy/   production compose stack, nginx, EC2 provisioning, runbook
-docs/     system prompt (the PDF deliverable), architecture
+docs/     architecture, system prompt (Markdown source of the PDF)
 deliverables/  recorded demo call flows + system-prompt.pdf
 ```
+
+[`docs/architecture.md`](docs/architecture.md) has the call diagram and the
+reasoning behind the structure.
 
 ## Development
 

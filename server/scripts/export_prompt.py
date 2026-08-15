@@ -65,7 +65,7 @@ def _space_lists(text: str) -> str:
 
         if is_item and prev.strip() and not in_list:
             out.append("")
-        elif in_list and line.strip() and not is_item and not continues_item:
+        elif in_list and prev.strip() and line.strip() and not is_item and not continues_item:
             out.append("")  # prose resuming after the list needs its own block
 
         out.append(line)
