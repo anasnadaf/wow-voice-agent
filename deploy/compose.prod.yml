@@ -1,0 +1,99 @@
+# Production stack for the WOW voice-agent host (EC2 m7i-flex.large).
+#
+# Ingress is this host's own nginx: Cloudflare fronts wow.anasnadaf.com (app)
+# and wowlogs.anasnadaf.com (MLflow) and the security group admits 80/443 from
+# Cloudflare ranges only. Voice media (Plivo websocket) terminates here
+# directly — it must not hop through another box.
+#
+# Images are built by this repo's CI on push to main and tagged :latest.
+# Rolling back means pinning a SHA tag in .env (SERVER_IMAGE=...:<sha>).
+services:
+  proxy:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - server
+      - web
+      - mlflow
+    mem_limit: 128m
+
+  server:
+    image: ${SERVER_IMAGE:-ghcr.io/anasnadaf/wow-voice-agent-server:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: prod
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set in .env}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-wow}
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      STT_PROVIDER: ${STT_PROVIDER:-sarvam}
+      TTS_PROVIDER: ${TTS_PROVIDER:-sarvam}
+      LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      TELEPHONY_PROVIDER: ${TELEPHONY_PROVIDER:-plivo}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:?set in .env}
+      GNANI_API_KEY: ${GNANI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:?set in .env}
+      CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
+      PLIVO_AUTH_ID: ${PLIVO_AUTH_ID:?set in .env}
+      PLIVO_AUTH_TOKEN: ${PLIVO_AUTH_TOKEN:?set in .env}
+      PLIVO_FROM_NUMBER: ${PLIVO_FROM_NUMBER:?set in .env}
+      AUTH_URL: ${AUTH_URL:-}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      RECORDINGS_DIR: /data/recordings
+    volumes:
+      - recordings:/data/recordings
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://localhost:8080/healthz')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/anasnadaf/wow-voice-agent-web:latest}
+    restart: unless-stopped
+    mem_limit: 512m
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-wow}
+    volumes:
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    mem_limit: 1g
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.15.1
+    restart: unless-stopped
+    # MLflow 3 rejects Host headers it does not recognise (DNS-rebinding
+    # defence), so the public hostname must be listed or the UI answers 400
+    # through the proxy.
+    command: >
+      mlflow server --host 0.0.0.0 --port 5000 --workers 1
+      --allowed-hosts ${MLFLOW_ALLOWED_HOSTS:-wowlogs.anasnadaf.com,mlflow,mlflow:5000,localhost,127.0.0.1}
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    volumes:
+      - mlflow_data:/mlflow
+    mem_limit: 512m
+
+volumes:
+  db_data:
+  mlflow_data:
+  recordings:
