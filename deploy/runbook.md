@@ -67,6 +67,13 @@ docker compose -f compose.prod.yml logs proxy       # 4xx/5xx at the edge
 
 - MLflow answers 400 through the proxy → its `--allowed-hosts` doesn't list
   the public hostname (`MLFLOW_ALLOWED_HOSTS` in `.env`).
+- Runs appear but artifacts (transcript, recording) are missing → MLflow must
+  run with `--serve-artifacts --artifacts-destination`, never a local
+  `--default-artifact-root`: the server container's filesystem is not writable
+  by the app container, and the failure is a log warning, not an error. Note
+  that an experiment stores its artifact location at creation time, so fixing
+  the flag does not repair an experiment created under the old config —
+  create a new one (or `mlflow gc` the old).
 - Plivo can't reach the websocket → check Cloudflare proxied status and that
   `/ws/` upgrade headers survive (`curl -i -H 'Upgrade: websocket' ...`).
 - Recordings live in the `recordings` volume (`/data/recordings` in server).

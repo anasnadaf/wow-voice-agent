@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     tts_language: str = "en"
     recordings_dir: str = "recordings"
 
-    mlflow_tracking_uri: str = "http://localhost:5000"
+    mlflow_tracking_uri: str = "http://localhost:5001"
 
     # dashboard auth (portfolio-auth bearer verification, nonstick pattern)
     auth_url: str = ""
