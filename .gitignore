@@ -20,6 +20,7 @@ out/
 # local data & run artifacts
 mlruns/
 mlartifacts/
+mlflow.db
 recordings/
 *.wav
 !deliverables/recordings/*.wav
