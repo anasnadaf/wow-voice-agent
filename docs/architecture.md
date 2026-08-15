@@ -4,8 +4,11 @@
 
 ```mermaid
 flowchart LR
-    V(["Visitor"]) -->|"name · phone · consent"| WEB["Next.js<br/>request-a-call"]
-    WEB -->|"POST /api/calls"| API["FastAPI"]
+    V(["Visitor"]) -->|"talks in browser"| DEMO["Next.js /demo<br/>WebRTC"]
+    V -->|"name · phone · consent"| WEB["Next.js<br/>request-a-call"]
+    DEMO -->|"POST /api/webrtc/offer"| API["FastAPI"]
+    DEMO <-.->|"audio over UDP"| PIPE
+    WEB -->|"POST /api/calls"| API
     API --> DB[("Postgres<br/>leads · calls · turns")]
     API -->|"originate"| PL["Plivo"]
     PL -->|"rings"| P(["Prospect"])
@@ -56,6 +59,13 @@ extractor labels every checkpoint on every turn regardless of stage, and the
 prompt is handed exactly one next target plus an explicit list of what is
 already answered. Volunteering intent and budget in the greeting skips both
 questions.
+
+**A browser call and a phone call are the same call.** Only the transport
+differs: both build the same pipeline, write the same `Call` row (a web call
+simply has no phone lead), record the same WAV, and run the same post-call
+analysis. That keeps the demo honest — what a reviewer hears in the browser is
+the production agent, not a simplified stand-in — and it means the phone path
+can be enabled by configuration rather than reimplementation.
 
 **Analysis is post-call.** Qualification extraction (DSPy `ChainOfThought`)
 runs after hangup where latency is free, and its failure can't affect a live

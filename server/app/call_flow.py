@@ -53,13 +53,42 @@ def _elapsed_s(started: datetime, ended: datetime) -> int:
     return int((ended - started).total_seconds())
 
 
-async def load_call(call_id: uuid.UUID) -> tuple[Call, Lead] | None:
+async def create_web_call(visitor_name: str | None, call_id: uuid.UUID | None = None) -> uuid.UUID:
+    """A browser demo session gets a real Call row, with no phone lead.
+
+    The caller may supply the id so it can name things (the agent, the
+    recording) before the row exists.
+    """
+    async with db_session.SessionLocal() as db:
+        call = Call(
+            id=call_id or uuid.uuid4(),
+            channel="web",
+            visitor_name=visitor_name,
+            status=CallStatus.requested,
+        )
+        db.add(call)
+        await db.commit()
+        return call.id
+
+
+async def set_status(call_id: uuid.UUID, status: CallStatus) -> None:
+    async with db_session.SessionLocal() as db:
+        call = await db.get(Call, call_id)
+        if call is None or call.status in _TERMINAL:
+            return
+        call.status = status
+        if status in _TERMINAL:
+            call.ended_at = call.ended_at or _now()
+        await db.commit()
+
+
+async def load_call(call_id: uuid.UUID) -> tuple[Call, Lead | None] | None:
+    """Load a call and its lead, if it has one — web demo calls do not."""
     async with db_session.SessionLocal() as db:
         call = await db.get(Call, call_id)
         if call is None:
             return None
-        lead = await db.get(Lead, call.lead_id)
-        assert lead is not None
+        lead = await db.get(Lead, call.lead_id) if call.lead_id else None
         return call, lead
 
 

@@ -34,6 +34,15 @@ if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
     done
   done
   echo "authorized Cloudflare IPv4 ranges on 80/443"
+
+  # WebRTC media for the browser demo. Signalling goes through Cloudflare, but
+  # the audio itself is UDP straight from the visitor's browser to this host on
+  # a port aiortc picks per call — so it cannot be narrowed to Cloudflare, and
+  # the range has to be wide. Media is DTLS-SRTP encrypted and ignored unless it
+  # matches a negotiated session. Drop this rule if you retire the browser demo.
+  aws ec2 authorize-security-group-ingress --group-id "$SG_ID" \
+    --protocol udp --port 10000-65535 --cidr 0.0.0.0/0 >/dev/null
+  echo "authorized UDP 10000-65535 for WebRTC media"
 else
   echo "security group exists: $SG_ID"
 fi

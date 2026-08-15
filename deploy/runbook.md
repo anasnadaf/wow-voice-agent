@@ -76,4 +76,12 @@ docker compose -f compose.prod.yml logs proxy       # 4xx/5xx at the edge
   create a new one (or `mlflow gc` the old).
 - Plivo can't reach the websocket → check Cloudflare proxied status and that
   `/ws/` upgrade headers survive (`curl -i -H 'Upgrade: websocket' ...`).
+- Browser demo connects but there is no audio → this is almost always the media
+  path, not the app. WebRTC signalling is HTTPS through Cloudflare, but the
+  audio is UDP directly between the visitor and this host, so it needs the
+  security group's UDP 10000-65535 rule, and `proxy` and `server` must be on
+  the host network (bridge networking cannot publish the per-call ports aiortc
+  picks, which looks like a successful connection with silence). Note this also
+  means the origin IP is visible in ICE candidates even with Cloudflare
+  proxying — inherent to serving WebRTC from the origin.
 - Recordings live in the `recordings` volume (`/data/recordings` in server).

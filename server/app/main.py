@@ -37,13 +37,15 @@ from app.voice.plivo_ws import router as plivo_router  # noqa: E402
 
 app.include_router(plivo_router)
 
+# The browser voice surface is the public demo, so it ships in every
+# environment; only Pipecat's prebuilt test client stays dev-only.
+from app.voice.webrtc import router as webrtc_router  # noqa: E402
+
+app.include_router(webrtc_router)
+
 if settings.app_env == "dev":
-    # Browser-mic voice testing: prebuilt client at /client, offer endpoint under /api
     from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
 
-    from app.voice.webrtc import router as webrtc_router
-
-    app.include_router(webrtc_router)
     app.mount("/client", SmallWebRTCPrebuiltUI)
 
 

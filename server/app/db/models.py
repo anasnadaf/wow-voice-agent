@@ -58,7 +58,13 @@ class Call(Base):
     __tablename__ = "calls"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    lead_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("leads.id"), index=True)
+    # Web demo sessions have no phone lead, so this is optional; phone calls
+    # always carry one.
+    lead_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("leads.id"), index=True, nullable=True
+    )
+    channel: Mapped[str] = mapped_column(String(10), default="phone")  # "phone" | "web"
+    visitor_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     provider_call_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[CallStatus] = mapped_column(
         Enum(CallStatus, name="call_status", native_enum=False, length=20),
@@ -72,7 +78,7 @@ class Call(Base):
     agent_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
-    lead: Mapped[Lead] = relationship(back_populates="calls")
+    lead: Mapped[Lead | None] = relationship(back_populates="calls")
     turns: Mapped[list["Turn"]] = relationship(
         back_populates="call", order_by="Turn.t_offset_ms", cascade="all, delete-orphan"
     )

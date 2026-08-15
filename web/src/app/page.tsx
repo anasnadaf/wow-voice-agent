@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ApiError, requestCall } from "@/lib/api";
 
@@ -199,8 +200,30 @@ export default function LandingPage() {
         </div>
 
         <div className="flex items-center">
-          <div className="w-full rounded-xl border border-line bg-pane p-8 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] sm:p-10">
-            <RequestCallForm />
+          <div className="w-full space-y-4">
+            <Link
+              href="/demo"
+              className="flex items-center justify-between gap-4 rounded-xl border border-brass bg-brass-soft px-8 py-6 transition hover:bg-brass/20"
+            >
+              <span>
+                <span className="block font-display text-xl text-cream">
+                  Speak with our consultant now
+                </span>
+                <span className="mt-1 block text-sm text-stone">
+                  A live voice conversation, right in your browser
+                </span>
+              </span>
+              <span aria-hidden className="text-2xl text-brass">
+                &rarr;
+              </span>
+            </Link>
+
+            <div className="rounded-xl border border-line bg-pane p-8 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] sm:p-10">
+              <p className="mb-6 text-xs uppercase tracking-[0.2em] text-stone">
+                Or request a call back
+              </p>
+              <RequestCallForm />
+            </div>
           </div>
         </div>
       </section>

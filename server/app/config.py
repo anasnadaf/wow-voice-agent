@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     tts_voice: str = "anushka"
     tts_language: str = "en"
     recordings_dir: str = "recordings"
+    # STUN for the browser demo; empty disables the lookup
+    stun_servers: str = "stun:stun.l.google.com:19302"
 
     mlflow_tracking_uri: str = "http://localhost:5001"
 

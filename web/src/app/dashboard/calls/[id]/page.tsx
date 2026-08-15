@@ -159,11 +159,13 @@ export default function CallDetailPage() {
       <div>
         <BackLink />
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h1 className="font-display text-3xl text-cream">{call.lead.name}</h1>
+          <h1 className="font-display text-3xl text-cream">
+            {call.lead?.name ?? call.visitor_name ?? "Web visitor"}
+          </h1>
           <StatusChip status={call.status} />
         </div>
         <p className="mt-1.5 text-sm text-stone">
-          {call.lead.phone}
+          {call.lead?.phone ?? "browser call"}
           {" · "}
           {formatWhen(call.started_at ?? call.created_at)}
           {call.duration_s != null && ` · ${formatDuration(call.duration_s)}`}
