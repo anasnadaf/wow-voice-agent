@@ -125,7 +125,9 @@ class TranscriptLine:
 async def play(persona: Persona) -> dict:
     print(f"\n{'=' * 72}\nPERSONA: {persona.key} — {persona.lead_name}\n{'=' * 72}")
     engine = ConversationEngine(f"sim-{persona.key}", persona.lead_name)
-    player = _default_llm(settings.convo_model, temperature=0.8, max_tokens=120)
+    # The persona only has to sound like a caller, so it runs on the small
+    # model — using the conversation model here doubled the token cost of a run.
+    player = _default_llm(settings.extract_model, temperature=0.8, max_tokens=120)
     system = SystemMessage(content=PLAYER_RULES + persona.profile)
     transcript: list[TranscriptLine] = [TranscriptLine("agent", engine.opening_line())]
     print(f"\nAGENT: {engine.opening_line()}")

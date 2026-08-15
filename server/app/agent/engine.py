@@ -40,9 +40,9 @@ def _default_llm(model: str, *, temperature: float, max_tokens: int) -> ChatOpen
 
 
 def _compose_opening(lead_name: str | None) -> str:
-    who = f"am I speaking with {lead_name}? " if lead_name else ""
+    who = f"am I speaking with {lead_name}? This" if lead_name else "this"
     return (
-        f"Hello, {who}this is Ananya calling from Divyasree Developers. "
+        f"Hello, {who} is Ananya calling from Divyasree Developers. "
         "I'm reaching out about Whispers of the Wind, our premium villa plot community "
         "near Nandi Hills in North Bengaluru. Is this a good time to talk for a couple "
         "of minutes?"
@@ -61,7 +61,7 @@ class ConversationEngine:
         extract_llm: BaseChatModel | None = None,
     ):
         self._reply_llm = reply_llm or _default_llm(
-            settings.convo_model, temperature=0.6, max_tokens=220
+            settings.convo_model, temperature=0.6, max_tokens=160
         )
         self._extract_llm = extract_llm or _default_llm(
             settings.extract_model, temperature=0.0, max_tokens=350

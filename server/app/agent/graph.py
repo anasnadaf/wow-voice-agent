@@ -52,7 +52,11 @@ December 2029). Respond with ONLY a JSON object, no prose, using exactly this sc
   "cta_accepted": true | false | null
 }
 Guidance:
-- "language" is "hi" if the message is in Hindi or romanized Hindi/Hinglish.
+- "language" is the language THE PROSPECT just spoke, not the one you replied in.
+  Use "hi" only when Hindi words carry the sentence (Devanagari, or romanized Hindi
+  such as "haan, mujhe plot chahiye"). Indian English is still "en": lakh, crore,
+  namaste, sir, ji or an Indian place name inside an otherwise English sentence
+  does NOT make it Hindi.
 - "permission" labels the answer to "is this a good time to talk".
 - "geography" is comfort with the Nandi Hills / Devanahalli area; "budget" is fitment
   with the ~92.4 lakh entry price ("mismatch" only when clearly out of reach);
@@ -69,6 +73,23 @@ _DNC_RE = re.compile(
     re.IGNORECASE,
 )
 _DEVANAGARI_RE = re.compile(r"[ऀ-ॿ]")
+
+# Romanized Hindi function words. Content words (lakh, crore, namaste) are
+# deliberately absent — they appear constantly in Indian English, and flipping
+# the call to Hindi on one of them strands an English speaker in Hinglish.
+_HINGLISH_RE = re.compile(
+    r"\b(hai|hain|haan|nahi|nahin|aap|aapka|aapke|aapko|kya|kyun|kyunki|mujhe|"
+    r"mera|meri|mere|main|hum|humein|hoon|hun|ji|yeh|ye|woh|wo|karo|karna|karta|"
+    r"karti|karunga|karungi|kar|raha|rahi|rahe|chahiye|bata|batao|bataiye|boliye|"
+    r"thik|theek|acha|accha|bilkul|abhi|kitna|kitne|kaise|kahan|kaha|mein|liye|"
+    r"lekin|magar|par|se|ka|ki|ko|bahut|thoda|sab|kuch|dhanyavad|shukriya)\b",
+    re.IGNORECASE,
+)
+# One stray "haan" in an English sentence is not a switch to Hindi; equally, a
+# short Hinglish line ("Haan ji, theek hai") should not read as English. Two
+# markers commit, zero markers release, and one is too weak to decide either
+# way — so an ambiguous turn leaves the language where it already was.
+_HINGLISH_COMMIT = 2
 
 
 def _chunk_text(message: BaseMessage) -> str:
@@ -209,13 +230,34 @@ def _next_stage(state: AgentState, permission: bool, slots: dict) -> str:
     return previous
 
 
+def _detect_language(user_text: str, current: str) -> str | None:
+    """Decide the caller's language from their own words.
+
+    The extractor labels Indian English as Hinglish more often than not, so the
+    caller's text decides this rather than the model. Returns None when the turn
+    is too ambiguous to move (an empty or one-marker turn), leaving the call in
+    whatever language it was already in.
+    """
+    if _DEVANAGARI_RE.search(user_text):
+        return "hi"
+    if not user_text.strip():
+        return None
+    markers = len(_HINGLISH_RE.findall(user_text))
+    if markers >= _HINGLISH_COMMIT:
+        return "hi"
+    if markers == 0:
+        return "en"
+    return current
+
+
 def _advance(state: AgentState) -> dict:
     ex = dict(state.get("extracted") or {})
 
     # deterministic guards — additive only, they never unset an extracted signal
     user_text = _last_user_text(state)
-    if _DEVANAGARI_RE.search(user_text):
-        ex["language"] = "hi"
+    detected = _detect_language(user_text, state["language"])
+    if detected is not None:
+        ex["language"] = detected
     if _DNC_RE.search(user_text.lower()):
         ex["dnc"] = True
 

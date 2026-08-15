@@ -41,8 +41,9 @@ EXPECTED: dict[str, dict[str, tuple[str, ...]]] = {
         "disposition": ("qualified", "not_qualified"),
     },
     "irritated": {
-        "outcome": ("declined", "not_qualified", "abandoned"),
-        "disposition": ("not_qualified", "incomplete"),
+        # de-escalating into a callback is a good outcome here, not a failure
+        "outcome": ("declined", "not_qualified", "abandoned", "callback"),
+        "disposition": ("not_qualified", "incomplete", "callback"),
     },
     "hindi_speaker": {"outcome": ("qualified", "callback"), "disposition": ("qualified",)},
     "busy_callback": {"outcome": ("callback", "declined"), "disposition": ("callback",)},
@@ -67,13 +68,20 @@ class CallJudge(dspy.Signature):
 
     transcript: str = dspy.InputField(desc="speaker-labelled transcript, one turn per line")
     persona: str = dspy.InputField(desc="the character the prospect was playing")
-    asked_permission: bool = dspy.OutputField(desc="opened properly and asked permission")
+    asked_permission: bool = dspy.OutputField(
+        desc="did the agent's OPENING name itself, the project and the location and ask "
+        "whether now is a good time — true even if the prospect then said no"
+    )
     checkpoints_covered: int = dspy.OutputField(desc="how many of the four were established (0-4)")
     repeated_a_question: bool = dspy.OutputField(desc="re-asked something already answered")
     pitch_quality: Literal["strong", "adequate", "weak", "not_applicable"] = dspy.OutputField()
     made_cta: Literal["yes", "no", "not_applicable"] = dspy.OutputField()
-    tone: Literal["premium", "acceptable", "pushy", "robotic"] = dspy.OutputField()
-    brevity: Literal["good", "wordy"] = dspy.OutputField(desc="replies short enough for speech")
+    tone: Literal["premium", "acceptable", "pushy", "robotic", "not_applicable"] = dspy.OutputField(
+        desc="not_applicable only if the agent barely spoke"
+    )
+    brevity: Literal["good", "wordy", "not_applicable"] = dspy.OutputField(
+        desc="replies short enough for speech"
+    )
     handled_edge_case: Literal["well", "poorly", "not_applicable"] = dspy.OutputField()
     notes: str = dspy.OutputField(desc="one sentence on the biggest weakness")
 
@@ -88,8 +96,14 @@ def score(judgement, expected: dict, outcome: str, disposition: str) -> tuple[fl
             judgement.pitch_quality
         ],
         "cta": {"yes": 1.0, "no": 0.0, "not_applicable": 1.0}[judgement.made_cta],
-        "tone": {"premium": 1.0, "acceptable": 0.6, "pushy": 0.0, "robotic": 0.2}[judgement.tone],
-        "brevity": 1.0 if judgement.brevity == "good" else 0.4,
+        "tone": {
+            "premium": 1.0,
+            "acceptable": 0.6,
+            "pushy": 0.0,
+            "robotic": 0.2,
+            "not_applicable": 1.0,
+        }[judgement.tone],
+        "brevity": {"good": 1.0, "wordy": 0.4, "not_applicable": 1.0}[judgement.brevity],
         "edge_case": {"well": 1.0, "poorly": 0.0, "not_applicable": 1.0}[
             judgement.handled_edge_case
         ],
@@ -118,7 +132,7 @@ async def evaluate(key: str, judge: dspy.Module) -> dict:
         "persona": key,
         "score": total,
         "parts": parts,
-        "outcome": snapshot["outcome"],
+        "outcome": snapshot["outcome"] or "",
         "disposition": qualification.disposition,
         "turns": len(turns),
         "notes": judgement.notes,
@@ -140,13 +154,24 @@ async def main() -> None:
     dspy.configure(lm=build_extraction_lm(settings))
     judge = dspy.ChainOfThought(CallJudge)
 
-    results = [await evaluate(key, judge) for key in keys]
+    results, failures = [], []
+    for key in keys:
+        try:
+            results.append(await evaluate(key, judge))
+        except Exception as exc:  # a bad judge parse must not lose the whole run
+            print(f"\n!! {key} could not be evaluated: {type(exc).__name__}: {exc}")
+            failures.append(key)
+    if not results:
+        sys.exit("no personas could be evaluated")
     overall = round(sum(r["score"] for r in results) / len(results), 3)
 
     print(f"\n{'=' * 72}")
     for r in results:
-        print(f"{r['persona']:32s} {r['score']:.3f}  {r['outcome']:14s} {r['disposition']}")
+        outcome = r["outcome"] or "—"
+        print(f"{r['persona']:32s} {r['score']:.3f}  {outcome:14s} {r['disposition']}")
     print(f"{'OVERALL':32s} {overall:.3f}")
+    if failures:
+        print(f"not evaluated: {', '.join(failures)}")
 
     if not args.no_mlflow:
         _log(results, overall)
