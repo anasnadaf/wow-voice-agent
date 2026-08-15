@@ -17,9 +17,7 @@ Intent = Literal["self_use", "investment", "mixed", "unknown"]
 Geography = Literal["comfortable", "objection", "unknown"]
 Budget = Literal["fits", "stretch", "mismatch", "unknown"]
 Timeline = Literal["comfortable", "concern", "unknown"]
-Disposition = Literal[
-    "qualified", "not_qualified", "callback", "dnc", "wrong_person", "incomplete"
-]
+Disposition = Literal["qualified", "not_qualified", "callback", "dnc", "wrong_person", "incomplete"]
 
 
 class QualificationResult(BaseModel):

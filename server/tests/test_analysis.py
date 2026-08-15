@@ -23,7 +23,9 @@ def test_format_transcript_labels_speakers():
 
 def test_extraction_lm_vendor_swap():
     assert "groq" in build_extraction_lm(make_settings()).kwargs["api_base"]
-    assert "cerebras" in build_extraction_lm(make_settings(llm_provider="cerebras")).kwargs["api_base"]
+    assert (
+        "cerebras" in build_extraction_lm(make_settings(llm_provider="cerebras")).kwargs["api_base"]
+    )
     with pytest.raises(ValueError):
         build_extraction_lm(make_settings(llm_provider="nope"))
 
