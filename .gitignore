@@ -1,0 +1,27 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# env & secrets — only examples are committed
+.env
+.env.*
+!.env.example
+
+# local data & run artifacts
+mlruns/
+mlartifacts/
+recordings/
+*.wav
+!deliverables/recordings/*.wav
+
+.DS_Store
