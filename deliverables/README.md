@@ -19,9 +19,15 @@ It also writes the Markdown source to `docs/system-prompt.md`.
 
 ## Recordings
 
-Each flow is a real outbound call placed through Plivo to a test number, with
-the agent running the production pipeline. Every folder holds the call
-recording, its transcript, and the qualification the extractor produced.
+Each flow is a real conversation with the deployed agent through the browser
+demo at `/demo`, which runs the production pipeline end to end — same STT,
+conversation graph, TTS, recording and post-call analysis a phone call uses.
+Every folder holds the call recording, its transcript, and the qualification
+the extractor produced.
+
+Telephony is wired and tested (Plivo, `app/voice/plivo_ws.py`) but not
+provisioned; the phone path needs a provider account with an Indian number, and
+the browser path demonstrates the same agent without one.
 
 | Flow | What it demonstrates |
 | --- | --- |
@@ -33,5 +39,6 @@ recording, its transcript, and the qualification the extractor produced.
 | `06-hindi-speaker` | Caller switches to Hindi mid-call; agent continues in Hinglish |
 | `07-busy-callback` | "Call me later" — agent takes a specific callback window and exits |
 
-Recordings are produced once live provider credentials are in place; see
-`docs/runbook.md` in `deploy/` for placing a test call.
+Recordings are produced once provider credentials (Sarvam + Groq) are in place:
+open `/demo`, hold the conversation, and the recording, transcript and
+qualification appear against that call in the dashboard and in MLflow.

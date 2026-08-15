@@ -82,7 +82,9 @@ class CallOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    lead_id: uuid.UUID
+    lead_id: uuid.UUID | None
+    channel: str
+    visitor_name: str | None
     provider_call_id: str | None
     status: str
     language: str | None
@@ -90,7 +92,7 @@ class CallOut(BaseModel):
     ended_at: datetime | None
     duration_s: int | None
     created_at: datetime
-    lead: LeadOut
+    lead: LeadOut | None
 
     @field_validator("status", mode="before")
     @classmethod

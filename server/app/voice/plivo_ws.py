@@ -111,7 +111,7 @@ async def plivo_stream(websocket: WebSocket, call_id: str):
     async def on_turn(turn):
         await call_flow.persist_turn(call_uuid, turn)
 
-    engine = ConversationEngine(call_id, lead.name)
+    engine = ConversationEngine(call_id, lead.name if lead else None)
     session = create_voice_session(transport, call_id, engine=engine, on_turn=on_turn)
     try:
         await session.run()

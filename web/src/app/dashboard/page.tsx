@@ -70,8 +70,12 @@ export default function CallsPage() {
             <tbody>
               {calls.map((call) => (
                 <tr key={call.id} className="border-b border-line last:border-b-0 hover:bg-pane">
-                  <td className="px-4 py-3 text-cream">{call.lead.name}</td>
-                  <td className="px-4 py-3 text-stone">{call.lead.phone}</td>
+                  <td className="px-4 py-3 text-cream">
+                    {call.lead?.name ?? call.visitor_name ?? "Web visitor"}
+                  </td>
+                  <td className="px-4 py-3 text-stone">
+                    {call.lead?.phone ?? "browser call"}
+                  </td>
                   <td className="px-4 py-3">
                     <StatusChip status={call.status} />
                   </td>

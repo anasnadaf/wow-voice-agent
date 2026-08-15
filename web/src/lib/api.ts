@@ -99,7 +99,9 @@ export type CallStatus =
 
 export interface Call {
   id: string;
-  lead_id: string;
+  lead_id: string | null;
+  channel: "phone" | "web";
+  visitor_name: string | null;
   provider_call_id: string | null;
   status: CallStatus;
   language: string | null;
@@ -107,7 +109,7 @@ export interface Call {
   ended_at: string | null;
   duration_s: number | null;
   created_at: string;
-  lead: Lead;
+  lead: Lead | null;
 }
 
 export interface Turn {
