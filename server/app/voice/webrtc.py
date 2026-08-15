@@ -50,7 +50,17 @@ async def webrtc_offer(request: dict, background_tasks: BackgroundTasks):
                 vad_analyzer=SileroVADAnalyzer(),
             ),
         )
-        session = create_voice_session(transport, call_id=f"dev-{uuid.uuid4().hex[:8]}")
+        call_id = f"dev-{uuid.uuid4().hex[:8]}"
+        try:
+            # Same brain as a phone call; browser sessions have no Call row,
+            # so nothing persists — this surface exists to hear the agent.
+            from app.agent.engine import ConversationEngine
+
+            engine = ConversationEngine(call_id, None)
+        except (RuntimeError, ValueError) as exc:
+            logger.warning(f"engine unavailable ({exc}); using placeholder LLM loop")
+            engine = None
+        session = create_voice_session(transport, call_id=call_id, engine=engine)
         background_tasks.add_task(session.run)
 
     answer = connection.get_answer()

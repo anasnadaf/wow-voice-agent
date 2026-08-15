@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from pipecat.frames.frames import TTSSpeakFrame
@@ -12,9 +13,13 @@ from pipecat.transports.base_transport import BaseTransport
 
 from app.config import Settings
 from app.config import settings as default_settings
+from app.voice.metrics import MetricsSummaryObserver
 from app.voice.providers import build_llm_service, build_stt, build_tts
 from app.voice.recorder import make_call_recorder
 from app.voice.transcript import TranscriptRecorder, TranscriptTurn
+
+if TYPE_CHECKING:
+    from app.agent.engine import ConversationEngine
 
 # Stands in until the LangGraph conversation engine (feat/agent-graph) is
 # bridged into the pipeline; keeps the voice loop testable on its own.
@@ -36,8 +41,10 @@ class VoiceSession:
     task: PipelineTask
     runner: PipelineRunner
     transcript: TranscriptRecorder
+    metrics: "MetricsSummaryObserver"
     recording_path: Path
     greeting: str
+    engine: "ConversationEngine | None" = None
 
     async def run(self) -> None:
         await self.runner.run(self.task)
@@ -46,12 +53,16 @@ class VoiceSession:
     def turns(self) -> list[TranscriptTurn]:
         return self.transcript.turns
 
+    def agent_snapshot(self) -> dict | None:
+        return self.engine.snapshot() if self.engine else None
+
 
 def create_voice_session(
     transport: BaseTransport,
     call_id: str,
     *,
     settings: Settings | None = None,
+    engine: "ConversationEngine | None" = None,
     system_prompt: str = PLACEHOLDER_SYSTEM_PROMPT,
     greeting: str = PLACEHOLDER_GREETING,
     on_turn=None,
@@ -66,13 +77,22 @@ def create_voice_session(
 
     stt = build_stt(cfg)
     tts = build_tts(cfg)
-    llm = build_llm_service(cfg)
+    if engine is not None:
+        # The LangGraph engine owns prompts and state; the context aggregator
+        # only carries the per-turn user text to the bridge.
+        from app.voice.bridge import EngineLLMService
 
-    context = LLMContext(messages=[{"role": "system", "content": system_prompt}])
+        llm: object = EngineLLMService(engine)
+        greeting = engine.opening_line()
+        context = LLMContext(messages=[])
+    else:
+        llm = build_llm_service(cfg)
+        context = LLMContext(messages=[{"role": "system", "content": system_prompt}])
     aggregators = LLMContextAggregatorPair(context)
 
     audiobuffer, recording_path = make_call_recorder(call_id, cfg)
     transcript = TranscriptRecorder(on_turn=on_turn)
+    metrics = MetricsSummaryObserver()
 
     pipeline = Pipeline(
         [
@@ -94,7 +114,7 @@ def create_voice_session(
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
-        observers=[transcript],
+        observers=[transcript, metrics],
     )
 
     @transport.event_handler("on_client_connected")
@@ -113,6 +133,8 @@ def create_voice_session(
         task=task,
         runner=PipelineRunner(handle_sigint=False),
         transcript=transcript,
+        metrics=metrics,
         recording_path=recording_path,
         greeting=greeting,
+        engine=engine,
     )
