@@ -12,6 +12,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="WOW Voice Agent", lifespan=lifespan)
 
+from app.voice.plivo_ws import router as plivo_router  # noqa: E402
+
+app.include_router(plivo_router)
+
 if settings.app_env == "dev":
     # Browser-mic voice testing: prebuilt client at /client, offer endpoint under /api
     from pipecat_ai_small_webrtc_prebuilt.frontend import SmallWebRTCPrebuiltUI
