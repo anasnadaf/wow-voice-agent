@@ -25,3 +25,6 @@ recordings/
 !deliverables/recordings/*.wav
 
 .DS_Store
+
+# claude worktrees / local state
+.claude/

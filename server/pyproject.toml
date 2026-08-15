@@ -12,6 +12,8 @@ dependencies = [
     "alembic>=1.13",
     "httpx>=0.27",
     "loguru>=0.7",
+    "pipecat-ai[openai,sarvam,silero,soundfile,webrtc,websocket]>=1.7.0",
+    "pipecat-ai-small-webrtc-prebuilt>=2.5.0",
 ]
 
 [dependency-groups]
