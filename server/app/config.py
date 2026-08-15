@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     app_env: str = "dev"
     public_base_url: str = "http://localhost:8080"
+    cors_origins: str = "http://localhost:3000"  # comma-separated
     database_url: str = "postgresql+asyncpg://wow:wow@localhost:5432/wow"
 
     # vendor selection — the adapter registry resolves these names
@@ -41,6 +42,8 @@ class Settings(BaseSettings):
 
     # dashboard auth (portfolio-auth bearer verification, nonstick pattern)
     auth_url: str = ""
+    # static admin bearer token fallback when no auth service is configured
+    admin_api_token: str = ""
 
 
 settings = Settings()

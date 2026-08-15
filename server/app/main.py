@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import calls, leads, me
 from app.config import settings
 
 
@@ -11,6 +13,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="WOW Voice Agent", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.include_router(leads.router)
+app.include_router(calls.router)
+app.include_router(me.router)
 
 from app.voice.plivo_ws import router as plivo_router  # noqa: E402
 

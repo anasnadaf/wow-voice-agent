@@ -1,26 +1,42 @@
 @import "tailwindcss";
 
+/* Committed single dark-elegant look for both the landing page and the dashboard. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #0c0e0a;
+  --pane: #131610;
+  --raised: #1a1e16;
+  --cream: #ece6d8;
+  --stone: #a09a87;
+  --brass: #c9a86a;
+  --brass-soft: rgba(201, 168, 106, 0.14);
+  --line: #262a20;
+  --danger: #d98873;
+  --success: #9db98a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-pane: var(--pane);
+  --color-raised: var(--raised);
+  --color-cream: var(--cream);
+  --color-stone: var(--stone);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-display-serif);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+::selection {
+  background: var(--brass);
+  color: var(--ink);
 }
