@@ -16,6 +16,8 @@ dependencies = [
     "pipecat-ai-small-webrtc-prebuilt>=2.5.0",
     "dspy>=3.3.0",
     "mlflow-skinny>=3.15.1",
+    "langgraph>=1.2.11",
+    "langchain-openai>=1.5.1",
 ]
 
 [dependency-groups]
