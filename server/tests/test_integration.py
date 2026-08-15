@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app import call_flow
 from app.db.models import Call, CallStatus, Lead, Turn
+from app.prompts import speech_tags_required
 from app.voice.bridge import latest_user_text
 from app.voice.transcript import TranscriptTurn
 
@@ -111,7 +112,11 @@ async def test_finalize_is_idempotent_on_terminal_calls(use_test_db):
         assert call.status is CallStatus.busy  # terminal status preserved
 
 
-async def test_bridge_streams_engine_reply_and_ends_pipeline(monkeypatch):
+async def test_bridge_streams_engine_reply_and_closes_the_call(monkeypatch):
+    """The hangup itself is timed, so it is pinned in test_hangup_silence."""
+    import asyncio
+
+    from pipecat.clocks.system_clock import SystemClock
     from pipecat.frames.frames import (
         EndTaskFrame,
         LLMFullResponseEndFrame,
@@ -119,8 +124,13 @@ async def test_bridge_streams_engine_reply_and_ends_pipeline(monkeypatch):
         LLMTextFrame,
     )
     from pipecat.processors.aggregators.llm_context import LLMContext
+    from pipecat.processors.frame_processor import FrameProcessorSetup
+    from pipecat.utils.asyncio.task_manager import TaskManager, TaskManagerParams
 
+    from app.voice import bridge
     from app.voice.bridge import EngineLLMService
+
+    monkeypatch.setattr(bridge, "HANGUP_SILENCE_S", 0.1)
 
     class StubEngine:
         def __init__(self):
@@ -131,13 +141,21 @@ async def test_bridge_streams_engine_reply_and_ends_pipeline(monkeypatch):
         def is_done(self):
             return self.done
 
+        def resume(self):
+            return False
+
         async def stream_turn(self, text):
             assert text == "I want to invest"
             yield "Wonderful — "
             yield "let me note that."
             self.done = True
 
+    manager = TaskManager()
+    manager.setup(TaskManagerParams(loop=asyncio.get_running_loop()))
     svc = EngineLLMService(StubEngine())
+    await svc.setup(
+        FrameProcessorSetup(clock=SystemClock(), task_manager=manager, pipeline_worker=None)
+    )
     pushed: list = []
 
     async def capture(frame, direction=None):
@@ -158,14 +176,23 @@ async def test_bridge_streams_engine_reply_and_ends_pipeline(monkeypatch):
 
     ctx = LLMContext(messages=[{"role": "user", "content": "I want to invest"}])
     await svc._run_turn(ctx)
+    await asyncio.sleep(0.25)  # the closing silence elapses
 
     kinds = [type(f) for f in pushed]
     assert kinds[0] is LLMFullResponseStartFrame
-    assert kinds.count(LLMTextFrame) == 2
+    # chunk boundaries are the bridge's business (it briefly holds the opening
+    # back to settle the tone tag) — the text and the frame order are the contract
+    assert kinds.count(LLMTextFrame) >= 1
     assert LLMFullResponseEndFrame in kinds
     assert kinds[-1] is EndTaskFrame  # engine done → pipeline asked to end
     texts = [f.text for f in pushed if isinstance(f, LLMTextFrame)]
-    assert "".join(texts) == "Wonderful — let me note that."
+    # tone tags depend on the configured voice, so pin the voice this asserts on
+    expected = (
+        "[neutral] Wonderful — let me note that."
+        if speech_tags_required()
+        else "Wonderful — let me note that."
+    )
+    assert "".join(texts) == expected
 
 
 def test_telephony_vendor_selection(monkeypatch):
