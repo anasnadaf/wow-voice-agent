@@ -25,9 +25,11 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from loguru import logger
 
 from app.agent.state import AgentState, next_checkpoint
-from app.prompts import system_prompt_for_turn
+from app.prompts import language_directive, speech_tags_required, system_prompt_for_turn
+from app.prompts.speech import MUGA_TONE_REMINDER, strip_speech_tags
 
 REPLY_NODES = ("intro", "qualify", "pitch", "cta")
 
@@ -103,12 +105,18 @@ def _chunk_text(message: BaseMessage) -> str:
     return ""
 
 
+# A 2-3 minute call stays well inside this, and the live-context block already
+# carries the facts that matter (answered checkpoints, objections), so older
+# turns cost tokens — and latency — without earning them.
+_HISTORY_TURNS = 10
+
+
 def _history_messages(state: AgentState) -> list[BaseMessage]:
     return [
         HumanMessage(content=m["content"])
         if m["role"] == "user"
         else AIMessage(content=m["content"])
-        for m in state["history"]
+        for m in state["history"][-_HISTORY_TURNS:]
     ]
 
 
@@ -128,12 +136,29 @@ def _last_assistant_text(state: AgentState) -> str:
 
 def _make_reply_node(stage: str, llm: BaseChatModel):
     async def reply(state: AgentState) -> dict:
+        # `advance` stores the language, but it runs after this node — so the
+        # stored value describes the previous turn. Detection is a regex over
+        # the caller's own words, costing nothing, so the reply resolves it
+        # first-hand and answers the language being spoken right now rather
+        # than the one spoken a turn ago.
+        state = {**state, "language": _resolve_language(state)}  # type: ignore[assignment]
         messages = [SystemMessage(content=system_prompt_for_turn(state))]
         messages.extend(_history_messages(state))
+        # Repeated last, after the transcript. Once a call switches to Hindi the
+        # history is still mostly English, and a rule sitting thousands of tokens
+        # back loses to that precedent — the model keeps answering in English.
+        # Restating it in the final position is what makes the switch stick, and
+        # the tone tag rides along because it has the same recency problem.
+        directive = language_directive(state["language"])
+        if speech_tags_required():
+            directive = f"{directive}\n{MUGA_TONE_REMINDER}"
+        messages.append(SystemMessage(content=directive))
         parts: list[str] = []
         async for chunk in llm.astream(messages):
             parts.append(_chunk_text(chunk))
-        return {"last_reply": "".join(parts)}
+        # The tag steers the synthesiser; what the agent remembers saying is the
+        # sentence itself, so history never carries the markup.
+        return {"last_reply": strip_speech_tags("".join(parts))}
 
     reply.__name__ = stage
     return reply
@@ -189,6 +214,52 @@ def _merge_slots(state: AgentState, ex: dict) -> tuple[dict, int]:
     if ex.get("timeline") in ("comfortable", "uncomfortable") and slots["timeline"] is None:
         slots["timeline"] = ex["timeline"]
     return slots, objections
+
+
+# Live speech-to-text emits short garbage from background noise ("Hmm hmm",
+# "Eggworks"). Ending a call on one of those is the worst possible failure, so
+# signals that hang up need a turn with enough words to actually carry them.
+_MIN_WORDS_FOR_EXIT = 3
+
+
+def _sanitize_exit_signals(ex: dict, state: AgentState, user_text: str) -> dict:
+    """Drop hang-up signals a garbled or nonsensical turn cannot support.
+
+    `dnc` is deliberately exempt: it is set by an explicit-phrase regex, never
+    by the model, so it cannot fire on noise — and honouring it always matters
+    more than the risk of a false positive.
+    """
+    if len(user_text.split()) < _MIN_WORDS_FOR_EXIT:
+        for signal in ("wrong_person", "not_interested", "busy"):
+            ex.pop(signal, None)
+    # Someone who has been answering questions for several turns is not
+    # suddenly the wrong person; that label mid-call is an extraction artifact.
+    if state["permission_granted"] and ex.get("wrong_person"):
+        ex.pop("wrong_person")
+    return ex
+
+
+# The reply and the outcome are decided in the same superstep, so the graph can
+# find a call finished on the very turn the agent asked something. Hanging up
+# then cuts the caller off mid-answer — the abrupt ending they hear.
+_MAX_CLOSING_DEFERRALS = 1
+# A do-not-call request is honoured immediately whatever the reply looked like:
+# respecting it matters more than the tidiness of the goodbye.
+_HARD_EXITS = ("dnc",)
+
+
+def _awaits_answer(reply: str) -> bool:
+    """Whether the agent's own last words left a question hanging."""
+    return reply.strip().endswith("?")
+
+
+def _hold_for_answer(outcome: str | None, state: AgentState) -> bool:
+    return bool(
+        outcome
+        and outcome not in _HARD_EXITS
+        and state["closing_deferred"] < _MAX_CLOSING_DEFERRALS
+        and _awaits_answer(state["last_reply"])
+    )
 
 
 def _decide_outcome(state: AgentState, ex: dict, slots: dict, irritation: int) -> str | None:
@@ -250,14 +321,18 @@ def _detect_language(user_text: str, current: str) -> str | None:
     return current
 
 
+def _resolve_language(state: AgentState) -> str:
+    """The language the caller is speaking on this turn, decided from their text."""
+    return _detect_language(_last_user_text(state), state["language"]) or state["language"]
+
+
 def _advance(state: AgentState) -> dict:
     ex = dict(state.get("extracted") or {})
 
     # deterministic guards — additive only, they never unset an extracted signal
     user_text = _last_user_text(state)
-    detected = _detect_language(user_text, state["language"])
-    if detected is not None:
-        ex["language"] = detected
+    ex["language"] = _resolve_language(state)
+    ex = _sanitize_exit_signals(ex, state, user_text)
     if _DNC_RE.search(user_text.lower()):
         ex["dnc"] = True
 
@@ -266,6 +341,12 @@ def _advance(state: AgentState) -> dict:
     slots, objections = _merge_slots(state, ex)
 
     outcome = state["outcome"] or _decide_outcome(state, ex, slots, irritation)
+    deferred = state["closing_deferred"]
+    if _hold_for_answer(outcome, state):
+        # let the caller answer; the outcome is re-decided next turn, by which
+        # point the agent has something to close on
+        logger.info(f"call {state['call_id']}: holding {outcome} — the agent just asked a question")
+        outcome, deferred = None, deferred + 1
     stage = "done" if outcome else _next_stage(state, permission, slots)
 
     history = list(state["history"])
@@ -278,6 +359,7 @@ def _advance(state: AgentState) -> dict:
         "slots": slots,
         "objection_count": objections,
         "outcome": outcome,
+        "closing_deferred": deferred,
         "stage": stage,
         "history": history,
         "extracted": {},
