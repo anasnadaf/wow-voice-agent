@@ -1659,6 +1659,21 @@ wheels = [
 ]
 
 [[package]]
+name = "pipecat-rumik"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "certifi" },
+    { name = "pipecat-ai" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/c9/6e924e8726c9851967482b53b589f79071b7e1c87d34a0aa9835b2c1aebe/pipecat_rumik-0.1.4.tar.gz", hash = "sha256:5afb2426c7423b068ccee9650a3c4d6899061e7a5df8a97431fcbc7897166860", size = 51074, upload-time = "2026-06-22T14:25:57.932Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6b/9b/41b5c0f192bbd408bd46b25fd13c880fbcefbd8a3ea33c38069ea65e37be/pipecat_rumik-0.1.4-py3-none-any.whl", hash = "sha256:0c1f7e51dab77152016fa78d0af678e99081db5fe6ac874f97b331d96f2f7cc3", size = 13998, upload-time = "2026-06-22T14:25:56.156Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2640,6 +2655,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pipecat-ai", extra = ["sarvam", "soundfile", "webrtc", "websocket"] },
     { name = "pipecat-ai-small-webrtc-prebuilt" },
+    { name = "pipecat-rumik" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -2670,6 +2686,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pipecat-ai", extras = ["openai", "sarvam", "silero", "soundfile", "webrtc", "websocket"], specifier = ">=1.7.0" },
     { name = "pipecat-ai-small-webrtc-prebuilt", specifier = ">=2.5.0" },
+    { name = "pipecat-rumik", specifier = ">=0.1.4" },
     { name = "pydantic-settings", specifier = ">=2.4" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },

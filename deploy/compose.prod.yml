@@ -42,9 +42,16 @@ services:
       STT_PROVIDER: ${STT_PROVIDER:-sarvam}
       TTS_PROVIDER: ${TTS_PROVIDER:-sarvam}
       LLM_PROVIDER: ${LLM_PROVIDER:-groq}
+      CONVO_MODEL: ${CONVO_MODEL:-llama-3.3-70b-versatile}
+      EXTRACT_MODEL: ${EXTRACT_MODEL:-llama-3.1-8b-instant}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       TELEPHONY_PROVIDER: ${TELEPHONY_PROVIDER:-plivo}
       SARVAM_API_KEY: ${SARVAM_API_KEY:?set in .env}
       GNANI_API_KEY: ${GNANI_API_KEY:-}
+      RUMIK_API_KEY: ${RUMIK_API_KEY:-}
+      RUMIK_GATEWAY_URL: ${RUMIK_GATEWAY_URL:-}
+      RUMIK_MODEL: ${RUMIK_MODEL:-mulberry}
+      RUMIK_VOICE: ${RUMIK_VOICE:-}
       GROQ_API_KEY: ${GROQ_API_KEY:?set in .env}
       CEREBRAS_API_KEY: ${CEREBRAS_API_KEY:-}
       PLIVO_AUTH_ID: ${PLIVO_AUTH_ID:?set in .env}

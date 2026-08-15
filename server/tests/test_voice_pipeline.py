@@ -33,6 +33,45 @@ def test_llm_vendor_swap_is_config_only():
     assert build_llm_service(cfg) is not None
 
 
+def rumik_settings(**overrides) -> Settings:
+    base = dict(tts_provider="rumik", rumik_api_key="test-rumik", rumik_gateway_url="https://gw")
+    base.update(overrides)
+    return make_settings(**base)
+
+
+def test_tts_vendor_swap_is_config_only():
+    from pipecat_rumik import RumikTTSService
+
+    tts = build_tts(rumik_settings())
+    assert isinstance(tts, RumikTTSService)
+    assert tts._settings.model == "mulberry"
+
+
+def test_mulberry_describes_the_voice_instead_of_pinning_one():
+    """An unset RUMIK_VOICE must send description alone — never voice alone."""
+    tts = build_tts(rumik_settings(rumik_voice=""))
+    assert tts._settings.voice is None
+    assert tts._settings.description
+
+
+def test_a_named_mulberry_voice_is_passed_through_when_configured():
+    tts = build_tts(rumik_settings(rumik_voice="ira"))
+    assert tts._settings.voice == "ira"
+
+
+def test_muga_carries_no_mulberry_only_fields():
+    tts = build_tts(rumik_settings(rumik_model="muga"))
+    assert tts._settings.model == "muga"
+    assert tts._settings.voice is None and tts._settings.description is None
+
+
+@pytest.mark.parametrize("missing", ["rumik_api_key", "rumik_gateway_url"])
+def test_rumik_without_credentials_fails_loudly(missing):
+    """A half-configured vendor must not reach a live call as a runtime error."""
+    with pytest.raises(ValueError, match="RUMIK"):
+        build_tts(rumik_settings(**{missing: ""}))
+
+
 @pytest.mark.parametrize("field", ["stt_provider", "tts_provider", "llm_provider"])
 def test_unknown_vendor_rejected(field):
     cfg = make_settings(**{field: "nope"})
