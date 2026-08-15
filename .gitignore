@@ -31,5 +31,10 @@ recordings/
 deploy/certs/*
 !deploy/certs/README.md
 
-# claude worktrees / local state
+# local agent/editor state
 .claude/
+CLAUDE.md
+**/CLAUDE.md
+
+# local credential scratch files
+.creds

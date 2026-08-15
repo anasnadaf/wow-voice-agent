@@ -33,9 +33,43 @@ flowchart LR
 ```
 
 Every vendor box is selected by env config and sits behind an adapter:
-`STT_PROVIDER` / `TTS_PROVIDER` (Sarvam ⇄ Gnani), `LLM_PROVIDER` (Groq ⇄
-Cerebras — both OpenAI-compatible), `TELEPHONY_PROVIDER` (Plivo, with Pipecat
-serializers for Exotel and Twilio available behind the same seam).
+`STT_PROVIDER` (Sarvam ⇄ Gnani), `TTS_PROVIDER` (Sarvam ⇄ Rumik ⇄ Gnani),
+`LLM_PROVIDER` (Groq ⇄ Cerebras — both OpenAI-compatible), `TELEPHONY_PROVIDER`
+(Plivo, with Pipecat serializers for Exotel and Twilio available behind the same
+seam).
+
+Rumik reads its own `RUMIK_*` voice settings rather than the shared `TTS_MODEL`
+/ `TTS_VOICE` pair, so `TTS_PROVIDER` stays a one-line swap in both directions.
+On `mulberry` an empty `RUMIK_VOICE` lets the model generate a voice from
+`RUMIK_DESCRIPTION`.
+
+`RUMIK_MODEL=muga` reaches further than the transport, because muga wants a tone
+tag (`[neutral]`, `[happy]`, …) opening every utterance. `app/prompts/speech.py`
+owns that vocabulary end to end: it adds the tag rules to the system prompt,
+corrects an invented tag before the audio is synthesised, and strips tags out of
+the transcript and the agent's own history. A tone tag is delivery, not speech,
+so it exists only in the audio path — the dashboard, the stored turns and the
+MLflow trace all show the sentence the caller actually heard. `speech_tags_required()`
+is the single switch, so no other voice is ever asked for tags.
+
+### How a call ends
+
+Three guards stand between the graph deciding a call is over and the line
+actually dropping, because every one of them was a real hang-up bug first.
+
+1. **Noise cannot end a call.** Exit signals (`wrong_person`, `not_interested`,
+   `busy`) are dropped from turns too short to carry them, so speech-to-text
+   turning background noise into a word cannot hang up on a caller. `dnc` is
+   exempt — it comes from an explicit-phrase regex the model cannot forge.
+2. **The agent never hangs up on its own question.** The reply and the outcome
+   are decided in the same superstep, so a closing turn can end on a question
+   the caller never got to answer. Closing is held for one turn when that
+   happens (`closing_deferred`).
+3. **The goodbye is followed by silence, not a click.** `HANGUP_SILENCE_S`
+   (seven seconds) of quiet is required before `EndTaskFrame` goes upstream. A
+   caller who speaks first reopens the call for a final exchange under the
+   wrap-up stage policy, bounded by `_MAX_RESUMES` and never granted after a
+   do-not-call request.
 
 ## Why the pieces are where they are
 
