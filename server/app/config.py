@@ -29,6 +29,14 @@ class Settings(BaseSettings):
     convo_model: str = "llama-3.3-70b-versatile"
     extract_model: str = "llama-3.1-8b-instant"
 
+    # voice tuning
+    stt_model: str = ""  # empty → vendor default
+    stt_mode: str = "codemix"  # Hinglish-friendly transcription
+    tts_model: str = "bulbul:v2"
+    tts_voice: str = "anushka"
+    tts_language: str = "en"
+    recordings_dir: str = "recordings"
+
     mlflow_tracking_uri: str = "http://localhost:5000"
 
     # dashboard auth (portfolio-auth bearer verification, nonstick pattern)
