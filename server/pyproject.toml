@@ -14,6 +14,8 @@ dependencies = [
     "loguru>=0.7",
     "pipecat-ai[openai,sarvam,silero,soundfile,webrtc,websocket]>=1.7.0",
     "pipecat-ai-small-webrtc-prebuilt>=2.5.0",
+    "dspy>=3.3.0",
+    "mlflow-skinny>=3.15.1",
 ]
 
 [dependency-groups]
