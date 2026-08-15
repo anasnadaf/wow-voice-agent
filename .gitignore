@@ -26,5 +26,9 @@ recordings/
 
 .DS_Store
 
+# deploy secrets (host-only)
+deploy/certs/*
+!deploy/certs/README.md
+
 # claude worktrees / local state
 .claude/
